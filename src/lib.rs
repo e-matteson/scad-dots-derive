@@ -14,36 +14,29 @@ pub fn map_dots(input: TokenStream) -> TokenStream {
     let ast = syn::parse_derive_input(&s).unwrap();
 
     // Build the impl
-    let gen = impl_map_dots(&ast);
+    let gen = impl_map_dots(ast);
     // println!("IMPL: {}", gen.as_str());
 
-    // Return the generated impl
+    //  Return the generated impl
     gen.parse().unwrap()
 }
 
-fn impl_map_dots(ast: &syn::DeriveInput) -> quote::Tokens {
-    const ATTR_NAME: &'static str = "map_dots";
+fn impl_map_dots(ast: syn::DeriveInput) -> quote::Tokens {
+    const ATTR_NAME: &str = "map_dots";
 
     let name = &ast.ident;
     let all_fields: Vec<_> = match ast.body {
-        syn::Body::Struct(syn::VariantData::Struct(ref body_fields)) => {
-            body_fields.to_owned()
-        }
+        syn::Body::Struct(syn::VariantData::Struct(body_fields)) => body_fields.to_owned(),
         // TODO support tuple structs
         _ => panic!("Can only derive MapDots for non-tuple structs"),
     };
 
-    let mapped = fields_to_initializer_lines(
-        &all_fields,
-        ".map(f)",
-        &|field| !is_ignored(&field, ATTR_NAME),
-    );
+    let mapped = fields_to_initializer_lines(&all_fields, ".map(f)", &|ref field| {
+        !is_ignored(field, ATTR_NAME)
+    });
 
-    let ignored = fields_to_initializer_lines(
-        &all_fields,
-        "",
-        &|field| is_ignored(&field, ATTR_NAME),
-    );
+    let ignored =
+        fields_to_initializer_lines(&all_fields, "", &|ref field| is_ignored(field, ATTR_NAME));
 
     quote! {
        impl MapDots for #name {
@@ -57,8 +50,6 @@ fn impl_map_dots(ast: &syn::DeriveInput) -> quote::Tokens {
     }
 }
 
-
-
 #[proc_macro_derive(MinMaxCoord, attributes(min_max_coord))]
 pub fn compare_coords(input: TokenStream) -> TokenStream {
     // Construct a string representation of the type definition
@@ -68,28 +59,26 @@ pub fn compare_coords(input: TokenStream) -> TokenStream {
     let ast = syn::parse_derive_input(&s).unwrap();
 
     // Build the impl
-    let gen = impl_compare_coords(&ast);
+    let gen = impl_compare_coords(ast);
 
     // Return the generated impl
     gen.parse().unwrap()
 }
 
-fn impl_compare_coords(ast: &syn::DeriveInput) -> quote::Tokens {
-    const ATTR_NAME: &'static str = "min_max_coord";
+fn impl_compare_coords(ast: syn::DeriveInput) -> quote::Tokens {
+    const ATTR_NAME: &str = "min_max_coord";
 
     let name = &ast.ident;
     let fields = match ast.body {
-        syn::Body::Struct(syn::VariantData::Struct(ref body_fields)) => {
-            body_fields.to_owned()
-        }
+        syn::Body::Struct(syn::VariantData::Struct(body_fields)) => body_fields.to_owned(),
         // TODO support tuple structs
         _ => panic!("Can only derive MinMaxCoord for non-tuple structs"),
     };
 
     let used: Vec<_> = fields
-        .iter()
+        .into_iter()
         .filter(|field| !is_ignored(field, ATTR_NAME))
-        .filter_map(|field| field.ident.as_ref())
+        .filter_map(|field| field.ident)
         .collect();
 
     quote! {
@@ -103,27 +92,19 @@ fn impl_compare_coords(ast: &syn::DeriveInput) -> quote::Tokens {
     }
 }
 
-
-fn get_attr_values(
-    field: &&syn::Field,
-    attr_name: &str,
-) -> Option<Vec<String>> {
+fn get_attr_values(field: &syn::Field, attr_name: &str) -> Option<Vec<String>> {
     if let Some(ref attr) = field.attrs.iter().find(|x| x.name() == attr_name) {
         if let syn::MetaItem::List(_, ref nested) = attr.value {
             return Some(
                 nested
                     .iter()
                     .filter_map(|item| {
-                        if let &syn::NestedMetaItem::MetaItem(
-                            syn::MetaItem::Word(ref word),
-                        ) = item
-                        {
+                        if let syn::NestedMetaItem::MetaItem(syn::MetaItem::Word(ref word)) = item {
                             Some(word.as_ref().to_owned())
                         } else {
                             None
                         }
-                    })
-                    .collect(),
+                    }).collect(),
             );
         }
     }
@@ -131,7 +112,7 @@ fn get_attr_values(
 }
 
 // TODO no double reference
-fn is_ignored(field: &&syn::Field, attr_name: &str) -> bool {
+fn is_ignored(field: &syn::Field, attr_name: &str) -> bool {
     const IGNORE_NAME: &str = "ignore";
     if let Some(v) = get_attr_values(field, attr_name) {
         v.iter().any(|s| s.as_str() == IGNORE_NAME)
@@ -143,15 +124,15 @@ fn is_ignored(field: &&syn::Field, attr_name: &str) -> bool {
 fn fields_to_initializer_lines<T>(
     fields: &[syn::Field],
     method: T,
-    filter_condition: &Fn(&syn::Field) -> bool,
+    filter_condition: &Fn(syn::Field) -> bool,
 ) -> Vec<quote::Tokens>
 where
-    T: Into<syn::Ident>,
+    syn::Ident: From<T>,
 {
-    let method: syn::Ident = method.into();
+    let method = syn::Ident::from(method);
     fields
-        .iter()
-        .filter(|field| filter_condition(field))
+        .into_iter()
+        .filter(|field| filter_condition((**field).clone()))
         .filter_map(|field| field.ident.as_ref())
         .map(|ident| quote! { #ident: self.#ident#method, })
         .collect()
