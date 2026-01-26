@@ -31,7 +31,7 @@ fn impl_map_dots(ast: syn::DeriveInput) -> quote::Tokens {
         _ => panic!("Can only derive MapDots for non-tuple structs"),
     };
 
-    let mapped = fields_to_initializer_lines(&all_fields, ".map(f)", &|ref field| {
+    let mapped = fields_to_initializer_lines(&all_fields, ".map_dots(f)", &|ref field| {
         !is_ignored(field, ATTR_NAME)
     });
 
@@ -40,7 +40,7 @@ fn impl_map_dots(ast: syn::DeriveInput) -> quote::Tokens {
 
     quote! {
        impl MapDots for #name {
-           fn map(&self, f: &Fn(&Dot) -> Dot) -> Self {
+           fn map_dots(&self, f: &Fn(&Dot) -> Dot) -> Self {
                #name {
                    #(#mapped)*
                    #(#ignored)*
