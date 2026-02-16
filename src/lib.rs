@@ -35,8 +35,9 @@ fn impl_map_dots(ast: syn::DeriveInput) -> quote::Tokens {
         !is_ignored(field, ATTR_NAME)
     });
 
-    let ignored =
-        fields_to_initializer_lines(&all_fields, "", &|ref field| is_ignored(field, ATTR_NAME));
+    let ignored = fields_to_initializer_lines(&all_fields, ".clone()", &|ref field| {
+        is_ignored(field, ATTR_NAME)
+    });
 
     quote! {
        impl MapDots for #name {
@@ -104,7 +105,8 @@ fn get_attr_values(field: &syn::Field, attr_name: &str) -> Option<Vec<String>> {
                         } else {
                             None
                         }
-                    }).collect(),
+                    })
+                    .collect(),
             );
         }
     }
